@@ -10,6 +10,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.base import BaseEstimator
 from sklearn.metrics import classification_report, mean_absolute_error, mean_squared_error, r2_score
 import polars as pl
+import pandas as pd
+import numpy as np
 
 """
 -----------------------------------------------------------------------------------------
@@ -89,6 +91,22 @@ class DropColumnTransformer(Transformation):
         
     def transform(self, df):
         return df.drop(self.columns)
+    
+#I think I made a functioning class, but it might be good to get one of y'all to look over it. 
+class AustinExperimenting(Transformation):
+
+    def __init__(self):
+        self.columns = ["yr_built", "yr_renovated"]
+
+    def fit(self, df):
+        return self
+
+    def transform(self, df):
+        df['yr_renovated2'] = np.where(df['yr_renovated'] == 0, df['yr_built'], df['yr_renovated'])
+        df['yr_since_renovation'] = 2026 - df['yr_renovated2']
+        df['built_to_reno'] = df['yr_renovated2'] - df['yr_built']
+        return df
+    
     
 """
 --------------------------------------------------------------------------------------
