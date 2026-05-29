@@ -38,8 +38,6 @@ An obvious thing to look at is the "niceness" of the house compared to the cost 
 
 In the first plot here, we see the distribution of house price by "Grade", or build quality, with 7 being average. The build quality of the house has a strong bearing on the actual price of the house, with anything under "average" being about the same price, and for every step above average, we get more and more price out of the house. 
 
-Our model should be keen on catching the higher grade houses, as we will make a lot of money just by selling expensive houses correctly. 
-
 ```{r}
 ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
   geom_boxplot(fill = "skyblue") +
@@ -71,9 +69,26 @@ ggplot(data = house, mapping = aes(x = as.factor(condition), y = price)) +
   theme(panel.grid.major.x = element_blank())
 ```
 
+When looking at the distribution of price in our data set, we find that there are hardly any houses over 2 million dollars to actually train our model on.
+
+```{r}
+ggplot(house, aes(x = price)) +
+  geom_histogram(fill = "skyblue", color = "black") +
+  labs(
+    x = "Price (USD)",
+    y = "Frequency of Price",
+    title = "Houses over $2m are outliers",
+    subtitle = "Model Training Difficulty Arises due to This"
+  ) +
+  scale_x_continuous(labels = scales::dollar) +
+  theme_bw()
+```
 
 
-
+```{r}
+spensive <- house %>% 
+  filter(price > 1999999)
+```
 
 
 ## Technical Details
