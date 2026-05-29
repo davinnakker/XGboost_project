@@ -15,9 +15,70 @@ Elijah Kearl
 Kimie Jensen
 Austin Bitsoi
 
+```{r}
+library(tidyverse)
+library(pander)
+```
+
+```{r}
+house <- read_csv("https://raw.githubusercontent.com/byui-cse/cse450-course/master/data/housing.csv")
+```
+
 ## Value (Or something)
 
 ## Data Insights (Or Something)
+
+```{r}
+ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
+  geom_boxplot() +
+  theme_bw()
+```
+
+```{r}
+house_median <- house %>% 
+  group_by(grade) %>% 
+  summarise(median_price = median(price))
+```
+
+```{r}
+ggplot(data = house_median, mapping = aes(x = as.factor(grade), y = median_price)) +
+  geom_col(fill = "skyblue", color = "black") +
+  labs(
+    x = "House Grade",
+    y = "Median House Price (USD)",
+    title = "Nicer Houses - Higher Prices",
+    subtitle = "Median House Prices Clearly Correlated with Grade"
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank())
+```
+
+```{r}
+ggplot(data = house, mapping = aes(x = sqft_above, y = price, color = as.factor(grade))) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+house_ft <- house %>% 
+  mutate(totalft = (sqft_basement + sqft_above) / sqft_lot) 
+```
+
+```{r}
+ggplot(data = house_ft, mapping = aes(x = totalft, y = price, color = as.factor(grade))) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+ggplot(data = house, mapping = aes(x = sqft_lot, y = price)) +
+  geom_point() +
+  theme_bw()
+```
+
+
+
 
 ## Technical Details (Or Something)
 
