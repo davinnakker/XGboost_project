@@ -18,70 +18,69 @@ Austin Bitsoi
 ```{r}
 library(tidyverse)
 library(pander)
+library(ggbeeswarm)
 ```
 
 ```{r}
 house <- read_csv("https://raw.githubusercontent.com/byui-cse/cse450-course/master/data/housing.csv")
 ```
 
-## Value (Or something)
+## Value
 
-## Data Insights (Or Something)
+Although the data we have work with doesn't allow us to directly compare our work with current company practices, we have been able to build a model that is able to guess house prices more accurately than by taking median or mean house prices by zip code. We are not under the impression the company evaluates house price just by median or mean, but we wanted to give you a baseline for our improvements. 
+
+
+
+## Data Insights
+
+An obvious thing to look at is the "niceness" of the house compared to the cost of it. There's two variables worth isolating here: "Grade" and "Condition". 
+
+
+In the first plot here, we see the distribution of house price by "Grade", or build quality, with 7 being average. The build quality of the house has a strong bearing on the actual price of the house, with anything under "average" being about the same price, and for every step above average, we get more and more price out of the house. 
+
+Our model should be keen on catching the higher grade houses, as we will make a lot of money just by selling expensive houses correctly. 
 
 ```{r}
 ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
-  geom_boxplot() +
-  theme_bw()
-```
-
-```{r}
-house_median <- house %>% 
-  group_by(grade) %>% 
-  summarise(median_price = median(price))
-```
-
-```{r}
-ggplot(data = house_median, mapping = aes(x = as.factor(grade), y = median_price)) +
-  geom_col(fill = "skyblue", color = "black") +
+  geom_boxplot(fill = "skyblue") +
+  #geom_violin() +
   labs(
-    x = "House Grade",
-    y = "Median House Price (USD)",
-    title = "Nicer Houses - Higher Prices",
-    subtitle = "Median House Prices Clearly Correlated with Grade"
+    x = "House Build Quality",
+    y = "House Price (USD)",
+    title = "Nicer Building - Higher Price",
+    subtitle = "7 is 'average build quality'"
   ) +
   scale_y_continuous(labels = scales::dollar) +
   theme_bw() +
   theme(panel.grid.major.x = element_blank())
 ```
 
+The second factor we wanted to look at was the condition of a house, or how nice it currently is. It's surprising that condition has virtually no impact on median price, as the distributions can show. 
 ```{r}
-ggplot(data = house, mapping = aes(x = sqft_above, y = price, color = as.factor(grade))) +
-  geom_point() +
-  theme_bw()
-```
-
-```{r}
-house_ft <- house %>% 
-  mutate(totalft = (sqft_basement + sqft_above) / sqft_lot) 
-```
-
-```{r}
-ggplot(data = house_ft, mapping = aes(x = totalft, y = price, color = as.factor(grade))) +
-  geom_point() +
-  theme_bw()
-```
-
-```{r}
-ggplot(data = house, mapping = aes(x = sqft_lot, y = price)) +
-  geom_point() +
-  theme_bw()
+ggplot(data = house, mapping = aes(x = as.factor(condition), y = price)) +
+  geom_boxplot( fill = "skyblue") +
+  #geom_violin() +
+  labs(
+    x = "House Condition",
+    y = "House Price (USD)",
+    title = "Do we care about house condition?",
+    subtitle = "Houses hold consistent median prices regardless of condition."
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank())
 ```
 
 
 
 
-## Technical Details (Or Something)
 
-## Addressing Specific Questions (I think)
+
+## Technical Details
+
+## Addressing Specific Questions
 
 ## Code 
+
+Our python code can be found here. 
+https://github.com/davinnakker/XGboost_project
