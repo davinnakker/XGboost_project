@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import BaseEstimator
-from sklearn.metrics import classification_report, mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import classification_report, mean_absolute_error, mean_squared_error, r2_score, rmse
 import polars as pl
 
 """
