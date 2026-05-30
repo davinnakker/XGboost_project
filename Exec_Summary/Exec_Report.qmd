@@ -1,26 +1,158 @@
 ---
-title: ""
-output:
-  html_document:
+title: "Reddic Housing Report"
+format:
+  html:
     theme: cerulean
-    code_folding: hide
+    code-fold: true
+execute:
+  message: false
+  warning: false
 ---
 
-# Reddic Housing LLC
-
-House Price Estimate Report
+# House Price Estimates
 
 Davin van den Akker
+
 Elijah Kearl
+
 Kimie Jensen
+
 Austin Bitsoi
 
-## Value (Or something)
+```{r}
+#| include: false
+library(tidyverse)
+library(pander)
+library(ggbeeswarm)
+```
 
-## Data Insights (Or Something)
+```{r}
+#| include: false
+house <- read_csv("https://raw.githubusercontent.com/byui-cse/cse450-course/master/data/housing.csv")
 
-## Technical Details (Or Something)
+mini <- read_csv("https://raw.githubusercontent.com/byui-cse/cse450-course/master/data/housing_holdout_test_mini.csv")
 
-## Addressing Specific Questions (I think)
+house1 <- house %>% 
+  
+  arrange(price)
+```
+
+## Value of our Model
+
+Although the data we have work with doesn't allow us to directly compare our work with current company practices, we have been able to build a model that is able to guess house prices more accurately than by taking median or mean house prices by zip code. We are not under the impression the company evaluates house price just by median or mean, but we wanted to give you a baseline for our improvements. 
+
+```{r}
+ggplot(house1, aes(x = 1:nrow(house1), y = price)) +
+  geom_line(color = "blue3", lwd = 1) +
+  labs(
+    x = "Individual House",
+    y = "Price (USD)",
+    title = "Model Predictions"
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  geom_hline(yintercept = median(house1$price), lwd = .7) +
+  #geom_hline(yintercept = mean(house1$price), lwd = .7) +
+  annotate(
+    "text",
+    x = 750,
+    y = 750000,
+    label = "Median Line"
+  ) +
+  theme_bw()
+```
+
+## Data Insights
+
+An obvious thing to look at is the "niceness" of the house compared to the cost of it. There's two variables worth isolating here: "Grade" and "Condition". 
+
+
+In the first plot here, we see the distribution of house price by "Grade", or build quality, with 7 being average. The build quality of the house has a strong bearing on the actual price of the house, with anything under "average" being about the same price, and for every step above average, we get more and more price out of the house. 
+
+```{r}
+ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
+  geom_boxplot(fill = "skyblue") +
+  #geom_violin() +
+  labs(
+    x = "House Build Quality",
+    y = "House Price (USD)",
+    title = "Nicer Building - Higher Price",
+    subtitle = "7 is 'average build quality'"
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank())
+```
+
+The second factor we wanted to look at was the condition of a house, or how nice it currently is. It's surprising that condition has virtually no impact on median price, as the distributions can show. 
+```{r}
+ggplot(data = house, mapping = aes(x = as.factor(condition), y = price)) +
+  geom_boxplot( fill = "skyblue") +
+  #geom_violin() +
+  labs(
+    x = "House Condition",
+    y = "House Price (USD)",
+    title = "Do we care about house condition?",
+    subtitle = "Houses hold consistent median prices regardless of condition."
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank())
+```
+
+When looking at the distribution of price in our data set, we find that there are hardly any houses over 2 million dollars to actually train our model on.
+
+```{r}
+ggplot(house, aes(x = price)) +
+  geom_histogram(fill = "skyblue", color = "black") +
+  labs(
+    x = "Price (USD)",
+    y = "Frequency of Price",
+    title = "Houses over $2m are outliers",
+    subtitle = "Model Training Difficulty Arises due to This"
+  ) +
+  scale_x_continuous(labels = scales::dollar) +
+  theme_bw()
+```
+
+```{r}
+#| include: false
+spensive <- house %>% 
+  filter(price > 1999999)
+
+cheap <- house %>% 
+  filter(price < 2000000)
+```
+
+
+```{r}
+#| include: false
+ggplot(spensive, aes(x = grade)) +
+  geom_histogram(fill = "skyblue", color = "black") +
+  scale_x_continuous(breaks = seq(min(spensive$grade), max(spensive$grade), by = 1)) +
+  theme_bw() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank())
+```
+
+```{r}
+#| include: false
+ggplot(cheap, aes(x = grade)) +
+  geom_histogram(fill = "skyblue", color = "black") +
+  scale_x_continuous(breaks = seq(min(cheap$grade), max(cheap$grade), by = 1)) +
+  theme_bw() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank())
+```
+
+
+## Technical Details
+
+## Addressing Specific Questions
 
 ## Code 
+
+Our python code can be found here. 
+
+https://github.com/davinnakker/XGboost_project
