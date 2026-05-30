@@ -39,54 +39,68 @@ house1 <- house %>%
 
 ## Value of our Model
 
-While we do not currently have access to the firm’s proprietary valuation algorithms for a direct side-by-side comparison, it is crucial to establish a quantitative baseline to demonstrate our model's predictive power. To do this, we benchmarked our optimized algorithm against a standard market heuristic: estimating a home's value based purely on its neighborhood's median price.
+Although direct access to the firm's proprietary valuation algorithms is not available for a point-by-point comparison, we established an objective baseline to quantify model performance. We compared our XGBoost regressor against a neighborhood-median heuristic (median price by zip code) to demonstrate the additional predictive value of our approach.
 
-While we recognize that the firm's current practices are far more sophisticated than a simple median, this baseline proves that our model is successfully capturing complex, multi-dimensional market signals rather than relying on broad generalizations. As illustrated in the accompanying performance chart, our tuned model consistently outperforms the neighborhood median benchmark across all price bands, delivering substantially lower error margins—particularly within the core market segments where the majority of transactions occur.
+Commercial valuation workflows are typically more complex than a zip-code median; nevertheless, this baseline highlights the incremental signal captured by our model. As shown in the accompanying performance figure, the XGBoost model reduces prediction error relative to the neighborhood-median baseline across price bands, with the greatest absolute improvements appearing in the core market segments that represent the majority of transactions.
 
 
 ```{r}
 error_by_bin <- read_csv("model_error_by_price_bin.csv")
 
-ggplot(error_by_bin, aes(x = bin_left, y = rmse, color = model)) +
-  geom_line(lwd = 1) +
-  geom_point(size = 2) +
-  labs(
-    x = "Actual Price (bin start)",
-    y = "RMSE",
-    title = "RMSE by Price Band: Tuned vs Fixed XGBoost vs Neighbor Median"
-  ) +
-  scale_x_continuous(limits = c(0, 7000000), labels = scales::dollar) +
-  scale_y_continuous(labels = scales::dollar) +
-  theme_bw()
-```
+error_wide <- error_by_bin %>%
+  select(bin_left, model, rmse) %>%
+  pivot_wider(names_from = model, values_from = rmse) %>%
+  mutate(
+    ymin = pmin(`XGBoost`, `Neighbor median`),
+    ymax = pmax(`XGBoost`, `Neighbor median`),
+    diff = `Neighbor median` - `XGBoost`
+  )
 
-```{r}
-ggplot(house1, aes(x = 1:nrow(house1), y = price)) +
-  geom_line(color = "blue3", lwd = 1) +
+bin_width <- median(diff(error_wide$bin_left), na.rm = TRUE)
+estimated_savings <- sum(pmax(error_wide$diff, 0) * bin_width, na.rm = TRUE)
+baseline_area <- sum(pmax(error_wide$`Neighbor median`, 0) * bin_width, na.rm = TRUE)
+estimated_savings_pct <- ifelse(baseline_area > 0, estimated_savings / baseline_area, NA_real_)
+error_wide$fill_label <- "Error reduction area"
+area_label_text <- bquote(bold("Percent better vs neighbor median:"~.(scales::percent(estimated_savings_pct, accuracy = 0.1))))
+
+ggplot() +
+  geom_ribbon(
+    data = error_wide,
+    aes(x = bin_left, ymin = ymin, ymax = ymax, fill = fill_label),
+    alpha = 0.4
+  ) +
+  geom_line(data = error_by_bin, aes(x = bin_left, y = rmse, color = model), lwd = 1) +
+  geom_point(data = error_by_bin, aes(x = bin_left, y = rmse, color = model), size = 2) +
   labs(
-    x = "Individual House",
-    y = "Price (USD)",
-    title = "Model Predictions"
+    x = "Actual Price",
+    y = "Error margin (RMSE)",
+    title = "XGBoost lowers housing pricing estimate error",
+    subtitle = "RMSE by price band: XGBoost vs neighbor median"
   ) +
+  scale_fill_manual(
+    values = c("Error reduction area" = "#d6d6d6"),
+    labels = c("Error reduction area" = area_label_text),
+    name = ""
+  ) +
+  scale_color_discrete(name = "") +
+  scale_x_continuous(limits = c(0, 5750000), labels = scales::dollar) +
   scale_y_continuous(labels = scales::dollar) +
-  geom_hline(yintercept = median(house1$price), lwd = .7) +
-  #geom_hline(yintercept = mean(house1$price), lwd = .7) +
-  annotate(
-    "text",
-    x = 750,
-    y = 750000,
-    label = "Median Line"
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.margin = margin(t = 2, r = 0, b = 0, l = 0),
+    legend.text = element_text(size = 11)
   ) +
-  theme_bw()
+  guides(fill = guide_legend(override.aes = list(alpha = 0.4)))
 ```
 
 
 ## Data Insights
 
-An obvious thing to look at is the "niceness" of the house compared to the cost of it. There's two variables worth isolating here: "Grade" and "Condition". 
+We evaluated the relationship between sale price and two structural attributes: build quality (`grade`) and observable condition (`condition`).
 
-
-In the first plot here, we see the distribution of house price by "Grade", or build quality, with 7 being average. The build quality of the house has a strong bearing on the actual price of the house, with anything under "average" being about the same price, and for every step above average, we get more and more price out of the house. 
+The first figure displays the distribution of sale price by `grade` (7 denotes average build quality). There is a pronounced positive association between grade and price: prices increase for grades above average, while grades below average exhibit similar median values.
 
 ```{r}
 ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
@@ -103,35 +117,74 @@ ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
   theme(panel.grid.major.x = element_blank())
 ```
 
-The second factor we wanted to look at was the condition of a house, or how nice it currently is. It's surprising that condition has virtually no impact on median price, as the distributions can show. 
+The second figure presents adjusted median prices by `condition` while holding other covariates constant. This isolates the conditional effect of condition from the broader mix of grades, sizes, and locations present in the raw sample.
+
 ```{r}
-ggplot(data = house, mapping = aes(x = as.factor(condition), y = price)) +
-  geom_boxplot( fill = "skyblue") +
-  #geom_violin() +
+#| echo: false
+# Adjusted predictions by condition (hold covariates at medians)
+house2 <- house %>%
+  mutate(
+    date_year = as.integer(substr(date, 1, 4)),
+    years_since_renovation = if_else(yr_renovated == 0, date_year - yr_built, date_year - yr_renovated),
+    month = as.integer(substr(date, 5, 6)),
+    sqft_living_to_neighbors = sqft_living / sqft_living15
+  ) %>%
+  filter(!is.na(price))
+
+# Fit a log-linear model to reduce skew and obtain adjusted predictions
+lm_log <- lm(
+  log(price) ~ factor(condition) + factor(grade) + bedrooms + bathrooms + sqft_living_to_neighbors + sqft_living15 + sqft_lot + floors + waterfront + view + sqft_above + sqft_basement + yr_built + years_since_renovation + month + lat + long,
+  data = house2
+)
+
+sigma <- summary(lm_log)$sigma
+
+# Prepare counterfactuals: set numeric covariates to their sample medians
+cond_levels <- sort(unique(house2$condition))
+medians <- house2 %>%
+  summarise(across(c(bedrooms, bathrooms, sqft_living_to_neighbors, sqft_living15, sqft_lot, floors, waterfront, view, sqft_above, sqft_basement, yr_built, years_since_renovation, month, lat, long), ~median(.x, na.rm = TRUE)))
+median_grade <- as.integer(median(house2$grade, na.rm = TRUE))
+
+newdata <- tibble(condition = cond_levels) %>% mutate(grade = median_grade)
+for (nm in names(medians)) newdata[[nm]] <- medians[[nm]]
+
+pred <- predict(lm_log, newdata = newdata, se.fit = TRUE)
+newdata$fit_log <- pred$fit
+newdata$se_fit <- pred$se.fit
+
+newdata <- newdata %>%
+  mutate(
+    pred_mean = exp(fit_log + 0.5 * sigma^2),
+    pred_lower = exp(fit_log - 1.96 * se_fit + 0.5 * sigma^2),
+    pred_upper = exp(fit_log + 1.96 * se_fit + 0.5 * sigma^2)
+  )
+
+ggplot(newdata, aes(x = factor(condition), y = pred_mean)) +
+  geom_point(size = 3, color = '#1f78b4') +
   labs(
-    x = "House Condition",
-    y = "House Price (USD)",
-    title = "Do we care about house condition?",
-    subtitle = "Houses hold consistent median prices regardless of condition."
+    x = 'Condition',
+    y = 'Adjusted median price (USD)',
+    title = 'Adjusted median price by condition',
+    subtitle = 'All other covariates held at their sample medians'
   ) +
   scale_y_continuous(labels = scales::dollar) +
-  theme_bw() +
-  theme(panel.grid.major.x = element_blank())
+  theme_bw()
 ```
 
-When looking at the distribution of price in our data set, we find that there are hardly any houses over 2 million dollars to actually train our model on.
+The price distribution is strongly right-skewed, with relatively few observations above $2M. This imbalance informed our decision to apply a log transformation to price so the model focuses on proportional error rather than being dominated by a small number of extreme transactions.
 
 ```{r}
 ggplot(house, aes(x = price)) +
-  geom_histogram(fill = "skyblue", color = "black") +
+  geom_histogram(fill = "#1f78b4", color = "white", bins = 40) +
   labs(
     x = "Price (USD)",
     y = "Frequency of Price",
-    title = "Houses over $2m are outliers",
-    subtitle = "Model Training Difficulty Arises due to This"
+    title = "Price distribution is right-skewed",
+    subtitle = "This skew motivated the log transformation of price"
   ) +
   scale_x_continuous(labels = scales::dollar) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid.minor = element_blank())
 ```
 
 ```{r}
