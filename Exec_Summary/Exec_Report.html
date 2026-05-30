@@ -198,7 +198,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>The second figure presents adjusted median prices by <code>condition</code> while holding other covariates constant. This isolates the conditional effect of condition from the broader mix of grades, sizes, and locations present in the raw sample.</p>
+<p>The second figure summarizes observed prices by condition, using the median sale price within each category to reduce the influence of extreme outliers. This is a critical adjustment; without accounting for these outliers, the skewed data creates the false impression that property condition has no measurable effect on the final sales price.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
@@ -258,6 +258,80 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="addressing-specific-questions" class="level2">
 <h2 class="anchored" data-anchor-id="addressing-specific-questions">Addressing Specific Questions</h2>
+<p>Question: What quantifiable evidence do we have that the predictions we come up with are reliable?</p>
+<p>Answer: In an effort for transparency, while testing our model, we made sure to include quantifiable evidence through different choices of metrics. The most non-technical metrics chosen where the following: - Percent of houses within 5% of their actual price - Percent of houses within 10% of their actual price - Percent of houses within 20% of their actual price</p>
+<p>More technical oriented metrics include: - R2 score - root mean squared error - median absolute error</p>
+<p>Our model scored well on each of these: - 42% of houses within 5% - 63% of houses within 10% - 86% of houses within 20% - R2 score: 0.88 - RMSE: 100,077 - MAE: 29,140</p>
+<p>Question: Which property types are weighing most heavily in the house prices predicted by your model?</p>
+<p>The attributes / property types weighing most heavily on the house prices predicted by our model are the following:</p>
+<ul>
+<li>The Grade of the House</li>
+<li>If there house is on waterfront</li>
+<li>A combined variable of house size, floors, bathrooms and bedrooms</li>
+<li>The median house price of the zipcode</li>
+<li>The rating of the houses view</li>
+</ul>
+<p>Question: Are there additional factors about these areas that might be affecting prices?</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>house_downtown <span class="ot">&lt;-</span> house <span class="sc">%&gt;%</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_year =</span> <span class="fu">as.integer</span>(<span class="fu">substr</span>(date, <span class="dv">1</span>, <span class="dv">4</span>)),</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">years_since_renovation =</span> <span class="fu">if_else</span>(yr_renovated <span class="sc">==</span> <span class="dv">0</span>, date_year <span class="sc">-</span> yr_built, date_year <span class="sc">-</span> yr_renovated),</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">month =</span> <span class="fu">as.integer</span>(<span class="fu">substr</span>(date, <span class="dv">5</span>, <span class="dv">6</span>)),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">sqft_living_to_neighbors =</span> sqft_living <span class="sc">/</span> sqft_living15</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(price))</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="st">"distance_to_downtown"</span> <span class="sc">%in%</span> <span class="fu">names</span>(house_downtown)) {</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  haversine_miles <span class="ot">&lt;-</span> <span class="cf">function</span>(lon1, lat1, lon2, lat2) {</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    r <span class="ot">&lt;-</span> <span class="fl">3958.8</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    to_rad <span class="ot">&lt;-</span> pi <span class="sc">/</span> <span class="dv">180</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    dlon <span class="ot">&lt;-</span> (lon2 <span class="sc">-</span> lon1) <span class="sc">*</span> to_rad</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    dlat <span class="ot">&lt;-</span> (lat2 <span class="sc">-</span> lat1) <span class="sc">*</span> to_rad</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    a <span class="ot">&lt;-</span> <span class="fu">sin</span>(dlat <span class="sc">/</span> <span class="dv">2</span>)<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> <span class="fu">cos</span>(lat1 <span class="sc">*</span> to_rad) <span class="sc">*</span> <span class="fu">cos</span>(lat2 <span class="sc">*</span> to_rad) <span class="sc">*</span> <span class="fu">sin</span>(dlon <span class="sc">/</span> <span class="dv">2</span>)<span class="sc">^</span><span class="dv">2</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="dv">2</span> <span class="sc">*</span> r <span class="sc">*</span> <span class="fu">asin</span>(<span class="fu">pmin</span>(<span class="dv">1</span>, <span class="fu">sqrt</span>(a)))</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  house_downtown <span class="ot">&lt;-</span> house_downtown <span class="sc">%&gt;%</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">distance_to_downtown =</span> <span class="fu">haversine_miles</span>(long, lat, <span class="sc">-</span><span class="fl">122.3321</span>, <span class="fl">47.6062</span>))</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>max_dist <span class="ot">&lt;-</span> <span class="fu">quantile</span>(house_downtown<span class="sc">$</span>distance_to_downtown, <span class="fl">0.95</span>, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>bin_width <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>binned <span class="ot">&lt;-</span> house_downtown <span class="sc">%&gt;%</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(distance_to_downtown <span class="sc">&lt;=</span> max_dist) <span class="sc">%&gt;%</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">dist_bin =</span> <span class="fu">floor</span>(distance_to_downtown <span class="sc">/</span> bin_width) <span class="sc">*</span> bin_width) <span class="sc">%&gt;%</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(dist_bin) <span class="sc">%&gt;%</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">median_price =</span> <span class="fu">median</span>(price, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">n =</span> <span class="fu">n</span>(),</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(binned, <span class="fu">aes</span>(<span class="at">x =</span> dist_bin, <span class="at">y =</span> median_price)) <span class="sc">+</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">color =</span> <span class="st">"#1f78b4"</span>, <span class="at">linewidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">color =</span> <span class="st">"#e31a1c"</span>, <span class="at">size =</span> <span class="fl">1.6</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">"Median sale price by distance to downtown (binned)"</span>,</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">"Each point is a median within a distance band"</span>,</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Distance to downtown (miles)"</span>,</span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Median sale price (USD)"</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>dollar) <span class="sc">+</span></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Exec_Report_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Answer: The binned median plot shows that observed sale prices are higher nearer downtown and generally decline as distance increases. This pattern is consistent with stronger demand close to major employment centers and amenities, and it helps explain the elevated prices observed in the Seattle–Bellevue corridor.</p>
 </section>
 <section id="code" class="level2">
 <h2 class="anchored" data-anchor-id="code">Code</h2>

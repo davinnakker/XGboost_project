@@ -117,55 +117,26 @@ ggplot(data = house, mapping = aes(x = as.factor(grade), y = price)) +
   theme(panel.grid.major.x = element_blank())
 ```
 
-The second figure presents adjusted median prices by `condition` while holding other covariates constant. This isolates the conditional effect of condition from the broader mix of grades, sizes, and locations present in the raw sample.
+The second figure summarizes observed prices by condition, using the median sale price within each category to reduce the influence of extreme outliers. This is a critical adjustment; without accounting for these outliers, the skewed data creates the false impression that property condition has no measurable effect on the final sales price.
 
 ```{r}
 #| echo: false
-# Adjusted predictions by condition (hold covariates at medians)
-house2 <- house %>%
-  mutate(
-    date_year = as.integer(substr(date, 1, 4)),
-    years_since_renovation = if_else(yr_renovated == 0, date_year - yr_built, date_year - yr_renovated),
-    month = as.integer(substr(date, 5, 6)),
-    sqft_living_to_neighbors = sqft_living / sqft_living15
-  ) %>%
-  filter(!is.na(price))
-
-# Fit a log-linear model to reduce skew and obtain adjusted predictions
-lm_log <- lm(
-  log(price) ~ factor(condition) + factor(grade) + bedrooms + bathrooms + sqft_living_to_neighbors + sqft_living15 + sqft_lot + floors + waterfront + view + sqft_above + sqft_basement + yr_built + years_since_renovation + month + lat + long,
-  data = house2
-)
-
-sigma <- summary(lm_log)$sigma
-
-# Prepare counterfactuals: set numeric covariates to their sample medians
-cond_levels <- sort(unique(house2$condition))
-medians <- house2 %>%
-  summarise(across(c(bedrooms, bathrooms, sqft_living_to_neighbors, sqft_living15, sqft_lot, floors, waterfront, view, sqft_above, sqft_basement, yr_built, years_since_renovation, month, lat, long), ~median(.x, na.rm = TRUE)))
-median_grade <- as.integer(median(house2$grade, na.rm = TRUE))
-
-newdata <- tibble(condition = cond_levels) %>% mutate(grade = median_grade)
-for (nm in names(medians)) newdata[[nm]] <- medians[[nm]]
-
-pred <- predict(lm_log, newdata = newdata, se.fit = TRUE)
-newdata$fit_log <- pred$fit
-newdata$se_fit <- pred$se.fit
-
-newdata <- newdata %>%
-  mutate(
-    pred_mean = exp(fit_log + 0.5 * sigma^2),
-    pred_lower = exp(fit_log - 1.96 * se_fit + 0.5 * sigma^2),
-    pred_upper = exp(fit_log + 1.96 * se_fit + 0.5 * sigma^2)
+cond_binned <- house %>%
+  filter(!is.na(price)) %>%
+  group_by(condition) %>%
+  summarise(
+    median_price = median(price, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
   )
 
-ggplot(newdata, aes(x = factor(condition), y = pred_mean)) +
+ggplot(cond_binned, aes(x = factor(condition), y = median_price)) +
   geom_point(size = 3, color = '#1f78b4') +
   labs(
     x = 'Condition',
-    y = 'Adjusted median price (USD)',
-    title = 'Adjusted median price by condition',
-    subtitle = 'All other covariates held at their sample medians'
+    y = 'Median sale price (USD)',
+    title = 'Median sale price by condition',
+    subtitle = 'Each point is the median within a condition category'
   ) +
   scale_y_continuous(labels = scales::dollar) +
   theme_bw()
@@ -250,7 +221,7 @@ Question:
 What quantifiable evidence do we have that the predictions we come up with are reliable?
 
 Answer:
-In an effort for transperency, while testing our model, we made sure to include quantifible evidence through different choices of metrics. The most non-technical metrics chosen where the following:
+In an effort for transparency, while testing our model, we made sure to include quantifiable evidence through different choices of metrics. The most non-technical metrics chosen where the following:
 - Percent of houses within 5% of their actual price
 - Percent of houses within 10% of their actual price
 - Percent of houses within 20% of their actual price
@@ -283,33 +254,58 @@ The attributes / property types weighing most heavily on the house prices predic
 Question:
 Are there additional factors about these areas that might be affecting prices?
 
-```{python}
-import polars as pl
-import numpy as np
-from lets_plot import *
-LetsPlot.setup_html()
+```{r}
+house_downtown <- house %>%
+  mutate(
+    date_year = as.integer(substr(date, 1, 4)),
+    years_since_renovation = if_else(yr_renovated == 0, date_year - yr_built, date_year - yr_renovated),
+    month = as.integer(substr(date, 5, 6)),
+    sqft_living_to_neighbors = sqft_living / sqft_living15
+  ) %>%
+  filter(!is.na(price))
 
-df = pl.read_csv("clean.csv")
-df = (
-    df.select(["price", "long", "lat"])
-    .filter(pl.col("long") < -121.6)
-    .with_columns(np.log10(pl.col("price")))
-)
+if (!"distance_to_downtown" %in% names(house_downtown)) {
+  haversine_miles <- function(lon1, lat1, lon2, lat2) {
+    r <- 3958.8
+    to_rad <- pi / 180
+    dlon <- (lon2 - lon1) * to_rad
+    dlat <- (lat2 - lat1) * to_rad
+    a <- sin(dlat / 2)^2 + cos(lat1 * to_rad) * cos(lat2 * to_rad) * sin(dlon / 2)^2
+    2 * r * asin(pmin(1, sqrt(a)))
+  }
 
-(
-    ggplot(data=df, mapping=aes(x='long', y='lat', color='price'))
-    + geom_point(size=1.4)
-    + scale_color_gradient(low="purple", high="yellow")
-    + theme(
-        panel_background=element_rect(fill="black"),
-        plot_background=element_rect(fill="white"))
-    + labs(title="Higher Priced Homes located new 'Eastside' of Seattle",
-           subtitle="Home prices sky rocket as you get closer to Bellevue")
-)
+  house_downtown <- house_downtown %>%
+    mutate(distance_to_downtown = haversine_miles(long, lat, -122.3321, 47.6062))
+}
+
+max_dist <- quantile(house_downtown$distance_to_downtown, 0.95, na.rm = TRUE)
+bin_width <- 2
+
+binned <- house_downtown %>%
+  filter(distance_to_downtown <= max_dist) %>%
+  mutate(dist_bin = floor(distance_to_downtown / bin_width) * bin_width) %>%
+  group_by(dist_bin) %>%
+  summarise(
+    median_price = median(price, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+ggplot(binned, aes(x = dist_bin, y = median_price)) +
+  geom_line(color = "#1f78b4", linewidth = 1) +
+  geom_point(color = "#e31a1c", size = 1.6, alpha = 0.8) +
+  labs(
+    title = "Median sale price by distance to downtown (binned)",
+    subtitle = "Each point is a median within a distance band",
+    x = "Distance to downtown (miles)",
+    y = "Median sale price (USD)"
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_bw()
 ```
 
 Answer:
-  We can see that the closer you get to the big tech hubs and the east side of Seattle the home prices skyrocket especially all around the water.
+The binned median plot shows that observed sale prices are higher nearer downtown and generally decline as distance increases. This pattern is consistent with stronger demand close to major employment centers and amenities, and it helps explain the elevated prices observed in the Seattle–Bellevue corridor.
 
 ## Code 
 
