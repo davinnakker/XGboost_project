@@ -149,7 +149,113 @@ ggplot(cheap, aes(x = grade)) +
 
 ## Technical Details
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Addressing Specific Questions
+Question:
+What quantifiable evidence do we have that the predictions we come up with are reliable?
+
+Answer:
+In an effort for transperency, while testing our model, we made sure to include quantifible evidence through different choices of metrics. The most non-technical metrics chosen where the following:
+- Percent of houses within 5% of their actual price
+- Percent of houses within 10% of their actual price
+- Percent of houses within 20% of their actual price
+
+More technical oriented metrics include:
+- R2 score
+- root mean squared error
+- median absolute error
+
+Our model scored well on each of these:
+- 42% of houses within 5%
+- 63% of houses within 10%
+- 86% of houses within 20%
+- R2 score: 0.88
+- RMSE: 100,077
+- MAE: 29,140
+
+
+Question:
+Which property types are weighing most heavily in the house prices predicted by your model?
+
+The attributes / property types weighing most heavily on the house prices predicted by our model are the following:
+
+- The Grade of the House
+- If there house is on waterfront
+- A combined variable of house size, floors, bathrooms and bedrooms
+- The median house price of the zipcode 
+- The rating of the houses view
+
+Question:
+Are there additional factors about these areas that might be affecting prices?
+
+```{python}
+import polars as pl
+import numpy as np
+from lets_plot import *
+LetsPlot.setup_html()
+
+df = pl.read_csv("clean.csv")
+df = (
+    df.select(["price", "long", "lat"])
+    .filter(pl.col("long") < -121.6)
+    .with_columns(np.log10(pl.col("price")))
+)
+
+(
+    ggplot(data=df, mapping=aes(x='long', y='lat', color='price'))
+    + geom_point(size=1.4)
+    + scale_color_gradient(low="purple", high="yellow")
+    + theme(
+        panel_background=element_rect(fill="black"),
+        plot_background=element_rect(fill="white"))
+    + labs(title="Higher Priced Homes located new 'Eastside' of Seattle",
+           subtitle="Home prices sky rocket as you get closer to Bellevue")
+)
+```
+
+Answer:
+  We can see that the closer you get to the big tech hubs and the east side of Seattle the home prices skyrocket especially all around the water.
 
 ## Code 
 
