@@ -33,6 +33,7 @@ house <- read_csv("https://raw.githubusercontent.com/byui-cse/cse450-course/mast
 mini <- read_csv("https://raw.githubusercontent.com/byui-cse/cse450-course/master/data/housing_holdout_test_mini.csv")
 
 house1 <- house %>% 
+  
   arrange(price)
 ```
 
