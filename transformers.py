@@ -8,8 +8,10 @@ from abc import ABC, abstractmethod
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import BaseEstimator
-from sklearn.metrics import classification_report, mean_absolute_error, mean_squared_error, r2_score, rmse
+from sklearn.metrics import classification_report, mean_absolute_error, mean_squared_error, r2_score, root_mean_squared_error
 import polars as pl
+import pandas as pd
+import numpy as np
 
 """
 -----------------------------------------------------------------------------------------
@@ -46,8 +48,7 @@ class ZipCodeTransformer(Transformation):
             df
             .group_by("zipcode")
             .agg(
-                median_price = pl.col("price").median(),
-                median_grade = pl.col("grade").median()
+                median_price = pl.col("price").median()
             )
         )
         return self
@@ -59,10 +60,10 @@ class ZipCodeTransformer(Transformation):
 class PCATransformer(Transformation):
 
     def __init__(self):
-        self.num_of_pcs = 3
+        self.num_of_pcs = 1
         self.pca = PCA(self.num_of_pcs)
         self.scaler = StandardScaler()
-        self.pca_cols = ["bedrooms", "bathrooms", "sqft_living", "sqft_lot", "floors", "sqft_above", "sqft_basement"]
+        self.pca_cols = ["bedrooms", "bathrooms", "sqft_living", "floors", "sqft_above", "sqft_basement"]
 
     def fit(self, df):
         df = self.scaler.fit_transform(df.select(self.pca_cols).to_numpy())
@@ -90,6 +91,26 @@ class DropColumnTransformer(Transformation):
     def transform(self, df):
         return df.drop(self.columns)
     
+class AustinExperimenting(Transformation):
+
+    def __init__(self):
+        self.columns = ["yr_built", "yr_renovated"]
+
+    def fit(self, df):
+        return self
+    
+    def transform(self, df: pl.DataFrame):
+        df = df.with_columns(
+            renovated_2 = pl.when(pl.col("yr_renovated") == 0)
+                            .then(pl.col("yr_built"))
+                            .otherwise(pl.col("yr_renovated")))
+        
+        df = df.with_columns(
+            yr_since_renovation = 2026 - pl.col("renovated_2")
+        )
+        return df.drop("renovated_2")
+        
+  
 """
 --------------------------------------------------------------------------------------
 Preprocessing Pipeline
@@ -126,12 +147,14 @@ def features_target_split(df: pl.DataFrame, target_col: str):
 def regression_report(y_test, y_pred):
     mae = mean_absolute_error(y_test, y_pred)
     mse = mean_squared_error(y_test, y_pred)
+    msre = root_mean_squared_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
 
     print("Regression Report")
     print("-" * 30)
     print(f"MAE  : {mae:.4f}")
     print(f"MSE  : {mse:.4f}")
+    print(f"MRSE  : {msre:.4f}")
     print(f"R²   : {r2:.4f}")
     print(f"Average Error: {mae / y_test.to_numpy().mean():.2f}%")
 
@@ -161,8 +184,12 @@ def test_model(
     if show_training:
         train_predictions = model.predict(X_train)
         if regression:
+            print()
+            print("TRAIN")
             regression_report(y_train, train_predictions)
         else:
+            print()
+            print("TEST")
             print(classification_report(y_train, train_predictions))
 
     test_preprocessed = pipeline.run_inference(test)
@@ -170,8 +197,12 @@ def test_model(
     predictions = model.predict(X_test)
 
     if regression:
+        print()
+        print("TEST")
         regression_report(y_test, predictions)
     else:
+        print()
+        print("TEST")
         print(classification_report(y_test, predictions))
     
     print(get_feature_importance(model, X_train))
