@@ -1,0 +1,23 @@
+# Core analysis
+numpy
+pandas
+scikit-learn
+xgboost
+optuna
+lets-plot
+pyproj
+
+# Optional models (only if you run ensemble.qmd or module-3.qmd)
+lightgbm
+catboost
+
+# Optional data processing
+polars
+
+# Optional geo features
+geopandas
+shapely
+fiona
+
+# Optional notebooks (for DataInsights.qmd display)
+ipython
